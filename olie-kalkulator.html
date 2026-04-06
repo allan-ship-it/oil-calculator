@@ -19,49 +19,47 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 /* ══════════════════════════════════════════════════
-   DESIGN TOKENS
+   DESIGN TOKENS — Light theme, dark strip
 ══════════════════════════════════════════════════ */
 :root {
-  /* Surfaces */
-  --bg0: #07080f;
-  --bg1: #0d0f1a;
-  --bg2: #131625;
-  --bg3: #191c2e;
+  /* Light surfaces */
+  --bg0: #f0f3f9;   /* page */
+  --bg1: #ffffff;   /* card */
+  --bg2: #f5f7fc;   /* tinted / hover */
+  --bg3: #ebeef7;   /* pressed */
 
   /* Borders */
-  --b0:  #161928;
-  --b1:  #1e2235;
-  --b2:  #272b42;
+  --b0:  #eaecf4;
+  --b1:  #dde1ef;
+  --b2:  #c9cedf;
 
   /* Text */
-  --t0:  #ecedf5;
-  --t1:  #9496b0;
-  --t2:  #585a74;
-  --t3:  #33364f;
+  --t0:  #111827;
+  --t1:  #374151;
+  --t2:  #6b7280;
+  --t3:  #9ca3af;
 
   /* Semantic */
-  --up:    #22c55e;
-  --dn:    #ef4444;
+  --up:  #15803d;
+  --dn:  #b91c1c;
 
-  /* Asset colours */
-  --oil:   #c78a0a;
-  --oill:  #f0b429;
-  --ecb:   #3b82f6;
-  --ecbl:  #60a5fa;
-  --boe:   #e05555;
-  --boel:  #f87171;
-  --fed:   #22c55e;
-  --fedl:  #4ade80;
+  /* Asset — darker for light bg */
+  --oil:  #92400e;
+  --oill: #b45309;
+  --ecb:  #1d4ed8;
+  --ecbl: #2563eb;
+  --boe:  #b91c1c;
+  --boel: #dc2626;
+  --fed:  #15803d;
+  --fedl: #16a34a;
 
-  /* Risk levels */
-  --risk-moderate: #ca8a04;
-  --risk-elevated: #ea580c;
-  --risk-severe:   #dc2626;
-  --risk-crisis:   #be123c;
+  /* Risk */
+  --risk-moderate: #92400e;
+  --risk-elevated: #9a3412;
+  --risk-severe:   #991b1b;
+  --risk-crisis:   #881337;
 
-  /* Typography */
   --font: -apple-system, 'Segoe UI', system-ui, sans-serif;
-  --tnum: 'tnum', 'tabular-nums';
 }
 
 /* ══════════════════════════════════════════════════
@@ -78,81 +76,74 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
-input { font-family: inherit; color: var(--t0); }
+input  { font-family: inherit; color: var(--t0); }
 button { font-family: inherit; cursor: pointer; }
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 
 /* ══════════════════════════════════════════════════
-   MARKET STRIP
+   MARKET STRIP  (stays dark — high-contrast anchor)
 ══════════════════════════════════════════════════ */
 #marketStrip {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--bg1);
-  border-bottom: 1px solid var(--b1);
+  background: #0b0d18;
+  border-bottom: 1px solid #1c1f30;
   display: flex;
   align-items: stretch;
-  height: 48px;
-  gap: 0;
+  height: 46px;
   overflow: hidden;
 }
-
 .ms-brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 20px;
-  border-right: 1px solid var(--b1);
+  padding: 0 18px;
+  border-right: 1px solid #1c1f30;
   white-space: nowrap;
   flex-shrink: 0;
 }
-.ms-brand-icon { font-size: 16px; }
+.ms-brand-icon { font-size: 15px; }
 .ms-brand-name {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .12em;
-  color: var(--t2);
+  color: #4a4f6a;
   text-transform: uppercase;
 }
-
 .ms-cards {
   display: flex;
   align-items: center;
   flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
-  gap: 0;
 }
 .ms-cards::-webkit-scrollbar { display: none; }
-
 .ms-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 18px;
-  border-right: 1px solid var(--b0);
+  padding: 0 16px;
+  border-right: 1px solid #161926;
   height: 100%;
-  cursor: default;
-  transition: background .15s;
   flex-shrink: 0;
+  transition: background .12s;
 }
-.ms-card:hover { background: var(--bg2); }
-.ms-card-info { display: flex; flex-direction: column; gap: 0; }
+.ms-card:hover { background: #131625; }
+.ms-card-info  { display: flex; flex-direction: column; }
 .ms-card-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 600;
-  color: var(--t2);
+  color: #4a4f6a;
   text-transform: uppercase;
   letter-spacing: .07em;
-  line-height: 1.2;
 }
 .ms-card-price {
   font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--t0);
+  color: #d8daf0;
   line-height: 1.2;
 }
 .ms-card-chg {
@@ -161,40 +152,90 @@ details > summary::-webkit-details-marker { display: none; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.ms-card-chg.up { color: var(--up); }
-.ms-card-chg.dn { color: var(--dn); }
-.ms-card-chg.nt { color: var(--t2); }
-
-.ms-card.is-oil .ms-card-label { color: var(--oil); }
-
+.ms-card-chg.up { color: #22c55e; }
+.ms-card-chg.dn { color: #f87171; }
+.ms-card-chg.nt { color: #4a4f6a; }
+.ms-card.is-oil .ms-card-label { color: #ca8a04; }
 .ms-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  border-left: 1px solid var(--b1);
+  gap: 10px;
+  padding: 0 14px;
+  border-left: 1px solid #1c1f30;
   flex-shrink: 0;
 }
 .live-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--t2);
+  gap: 5px;
+  font-size: 10.5px;
+  color: #4a4f6a;
 }
 .live-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: var(--up);
+  background: #22c55e;
   animation: pulse 2.5s ease-in-out infinite;
   flex-shrink: 0;
 }
-.live-dot.offline { background: var(--t3); animation: none; }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: .35; }
+.live-dot.offline { background: #374151; animation: none; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.ms-time { font-size: 10.5px; color: #2d3050; font-variant-numeric: tabular-nums; }
+#refreshBtn, #settingsBtn {
+  background: none;
+  border: 1px solid #272b42;
+  border-radius: 4px;
+  color: #4a4f6a;
+  font-size: 13px;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; padding: 0;
 }
-.ms-time { font-size: 11px; color: var(--t3); font-variant-numeric: tabular-nums; }
+#refreshBtn:hover, #settingsBtn:hover { border-color: #ca8a04; color: #f0b429; }
+
+/* Settings panel (drops below strip) */
+#settingsPanel {
+  background: #0f1120;
+  border-bottom: 1px solid #1c1f30;
+  padding: 10px 20px;
+  display: none;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+#settingsPanel.open { display: flex; }
+.sp-label { font-size: 11px; color: #6b7280; white-space: nowrap; }
+.sp-input-row { display: flex; gap: 6px; flex: 1; min-width: 260px; }
+#finnhubKey {
+  flex: 1;
+  background: #1a1d2e;
+  border: 1px solid #272b42;
+  border-radius: 5px;
+  color: #d8daf0;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: monospace;
+  outline: none;
+}
+#finnhubKey:focus { border-color: #ca8a04; }
+#saveKeyBtn {
+  background: #ca8a04;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#saveKeyBtn:hover { background: #b45309; }
+.sp-note {
+  font-size: 10.5px;
+  color: #374151;
+}
+.sp-note a { color: #ca8a04; text-decoration: none; }
+.sp-note a:hover { text-decoration: underline; }
 
 /* ══════════════════════════════════════════════════
    APP LAYOUT
@@ -202,42 +243,35 @@ details > summary::-webkit-details-marker { display: none; }
 .app {
   display: grid;
   grid-template-columns: 310px 1fr;
-  height: calc(100vh - 48px);
+  height: calc(100vh - 46px);
 }
 
 /* ══════════════════════════════════════════════════
-   LEFT: CONTROLS PANEL
+   LEFT: CONTROLS
 ══════════════════════════════════════════════════ */
 .controls {
-  background: var(--bg1);
+  background: #f8f9fd;
   border-right: 1px solid var(--b1);
   overflow-y: auto;
-  padding: 20px 16px;
+  padding: 18px 14px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
   scrollbar-width: thin;
   scrollbar-color: var(--b2) transparent;
 }
-
-.ctrl-section { display: flex; flex-direction: column; gap: 8px; }
-
+.ctrl-section { display: flex; flex-direction: column; gap: 7px; }
 .ctrl-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: .11em;
   color: var(--t3);
   text-transform: uppercase;
 }
-
-.ctrl-row-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+.ctrl-row-head { display: flex; justify-content: space-between; align-items: center; }
 .ctrl-val {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--oill);
   font-variant-numeric: tabular-nums;
 }
@@ -246,56 +280,54 @@ details > summary::-webkit-details-marker { display: none; }
   justify-content: space-between;
   font-size: 10px;
   color: var(--t3);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 /* Scenario buttons */
-.scenario-group { display: flex; flex-direction: column; gap: 6px; }
+.scenario-group { display: flex; flex-direction: column; gap: 5px; }
 .scn-btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  background: var(--bg2);
-  border: 1px solid var(--b1);
+  padding: 9px 11px;
+  background: var(--bg1);
+  border: 1.5px solid var(--b1);
   border-radius: 8px;
-  color: var(--t1);
+  color: var(--t2);
   text-align: left;
-  transition: all .15s;
+  transition: all .13s;
 }
-.scn-btn:hover { border-color: var(--b2); color: var(--t0); background: var(--bg3); }
+.scn-btn:hover { border-color: var(--b2); color: var(--t0); background: var(--bg2); }
 .scn-btn.active {
-  border-color: var(--oil);
-  background: rgba(199, 138, 10, .08);
+  border-color: var(--oill);
+  background: #fffbeb;
   color: var(--t0);
+  box-shadow: 0 0 0 3px rgba(180,83,9,.07);
 }
-.scn-icon { font-size: 18px; flex-shrink: 0; }
+.scn-icon  { font-size: 17px; flex-shrink: 0; }
 .scn-name  { font-size: 12px; font-weight: 600; line-height: 1.2; }
-.scn-detail { font-size: 10px; color: var(--t2); margin-top: 2px; }
+.scn-detail { font-size: 10px; color: var(--t3); margin-top: 1px; }
 .scn-btn.active .scn-detail { color: var(--oill); }
 
 /* Mode pills */
 .mode-group { display: flex; gap: 4px; }
 .mode-btn {
-  flex: 1;
-  padding: 6px 4px;
-  background: var(--bg2);
-  border: 1px solid var(--b1);
+  flex: 1; padding: 6px 4px;
+  background: var(--bg1);
+  border: 1.5px solid var(--b1);
   border-radius: 6px;
   color: var(--t2);
   font-size: 11px;
   font-weight: 600;
-  transition: all .15s;
   text-align: center;
+  transition: all .13s;
 }
 .mode-btn:hover { border-color: var(--b2); color: var(--t1); }
-.mode-btn.active[data-mode="base"]    { border-color: var(--ecb); color: var(--ecbl); background: rgba(59,130,246,.1); }
-.mode-btn.active[data-mode="stress"]  { border-color: var(--risk-elevated); color: #fb923c; background: rgba(234,88,12,.1); }
-.mode-btn.active[data-mode="extreme"] { border-color: var(--risk-crisis); color: var(--boel); background: rgba(190,18,60,.1); }
-
+.mode-btn.active[data-mode="base"]    { border-color: var(--ecbl); color: var(--ecb);  background: #eff6ff; }
+.mode-btn.active[data-mode="stress"]  { border-color: #f97316;     color: #c2410c;     background: #fff7ed; }
+.mode-btn.active[data-mode="extreme"] { border-color: var(--boel);  color: var(--boe); background: #fef2f2; }
 .mode-note {
-  font-size: 10px;
-  color: var(--t2);
+  font-size: 10px; color: var(--t2);
   padding: 4px 8px;
   background: var(--bg2);
   border-radius: 4px;
@@ -306,266 +338,176 @@ details > summary::-webkit-details-marker { display: none; }
 
 /* Sliders */
 input[type="range"] {
-  width: 100%;
-  height: 3px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: var(--b2);
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
+  width: 100%; height: 3px;
+  -webkit-appearance: none; appearance: none;
+  background: var(--b2); border-radius: 2px;
+  outline: none; cursor: pointer;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px; height: 14px;
-  border-radius: 50%;
+  width: 14px; height: 14px; border-radius: 50%;
   background: var(--oill);
-  border: 2px solid var(--bg0);
-  cursor: pointer;
-  transition: transform .1s;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px var(--b2);
+  cursor: pointer; transition: transform .1s;
 }
 input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
 
 /* Oil toggle */
 .oil-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 8px 10px;
-  background: var(--bg2);
-  border: 1px solid var(--b1);
+  background: var(--bg1);
+  border: 1.5px solid var(--b1);
   border-radius: 7px;
 }
 .toggle-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--t1);
-  user-select: none;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; font-size: 12px; color: var(--t1); user-select: none;
 }
 .toggle-label input[type="checkbox"] { display: none; }
 .toggle-track {
   width: 32px; height: 17px;
-  background: var(--b2);
-  border-radius: 10px;
-  position: relative;
-  transition: background .2s;
-  flex-shrink: 0;
+  background: var(--b2); border-radius: 10px;
+  position: relative; transition: background .2s; flex-shrink: 0;
 }
 .toggle-track::after {
-  content: '';
-  position: absolute;
+  content: ''; position: absolute;
   width: 13px; height: 13px;
-  background: var(--t2);
-  border-radius: 50%;
-  top: 2px; left: 2px;
-  transition: all .2s;
+  background: white; border-radius: 50%;
+  top: 2px; left: 2px; transition: all .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
 }
-.toggle-label input:checked + .toggle-track { background: var(--oil); }
-.toggle-label input:checked + .toggle-track::after { left: 17px; background: white; }
+.toggle-label input:checked + .toggle-track { background: var(--oill); }
+.toggle-label input:checked + .toggle-track::after { left: 17px; }
 .live-oil-val {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--oill);
+  font-size: 13px; font-weight: 700; color: var(--oill);
   font-variant-numeric: tabular-nums;
 }
-
-.manual-oil {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-}
+.manual-oil { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
 .manual-oil input {
-  flex: 1;
-  background: var(--bg2);
-  border: 1px solid var(--b1);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  outline: none;
+  flex: 1; background: var(--bg1);
+  border: 1.5px solid var(--b1); border-radius: 6px;
+  padding: 6px 10px; font-size: 13px;
+  font-variant-numeric: tabular-nums; outline: none;
   transition: border-color .15s;
 }
-.manual-oil input:focus { border-color: var(--oil); }
-.manual-oil-unit { font-size: 11px; color: var(--t2); white-space: nowrap; }
+.manual-oil input:focus { border-color: var(--oill); }
+.manual-oil-unit { font-size: 11px; color: var(--t3); white-space: nowrap; }
 .hidden { display: none !important; }
 
 /* Advanced accordion */
-.adv-details {
-  border: 1px solid var(--b1);
-  border-radius: 8px;
-  overflow: hidden;
-}
+.adv-details { border: 1.5px solid var(--b1); border-radius: 8px; overflow: hidden; }
 .adv-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  background: var(--bg2);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--t2);
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  transition: color .15s;
-  user-select: none;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px;
+  background: var(--bg2); cursor: pointer;
+  font-size: 10.5px; font-weight: 600; color: var(--t3);
+  letter-spacing: .06em; text-transform: uppercase;
+  transition: color .15s; user-select: none;
 }
-.adv-summary:hover { color: var(--t1); }
-.adv-caret {
-  font-size: 14px;
-  transition: transform .2s;
-  color: var(--t3);
-}
+.adv-summary:hover { color: var(--t2); }
+.adv-caret { font-size: 14px; transition: transform .2s; }
 .adv-details[open] .adv-caret { transform: rotate(90deg); }
 .adv-body {
-  padding: 14px 12px;
+  padding: 13px 12px;
   background: var(--bg1);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: flex; flex-direction: column; gap: 14px;
 }
-
-/* CB inputs in advanced */
-.cbi-block { display: flex; flex-direction: column; gap: 6px; }
-.cbi-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--t1);
-}
-.cbi-dot {
-  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-}
+.cbi-block { display: flex; flex-direction: column; gap: 5px; }
+.cbi-head { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--t1); }
+.cbi-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .cbi-dot.ecb { background: var(--ecb); }
 .cbi-dot.boe { background: var(--boe); }
 .cbi-dot.fed { background: var(--fed); }
-.cbi-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.cbi-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .cbi-field { display: flex; flex-direction: column; gap: 3px; }
 .cbi-field label { font-size: 10px; color: var(--t3); }
 .cbi-field input {
-  background: var(--bg2);
-  border: 1px solid var(--b1);
-  border-radius: 5px;
-  padding: 5px 8px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  outline: none;
-  transition: border-color .15s;
-  width: 100%;
+  background: var(--bg2); border: 1.5px solid var(--b1);
+  border-radius: 5px; padding: 5px 8px;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+  outline: none; transition: border-color .15s; width: 100%;
 }
-.cbi-field input:focus { border-color: var(--oil); }
+.cbi-field input:focus { border-color: var(--oill); }
 
 /* ══════════════════════════════════════════════════
    RIGHT: DASHBOARD
 ══════════════════════════════════════════════════ */
 .dashboard {
   overflow-y: auto;
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 14px;
   scrollbar-width: thin;
   scrollbar-color: var(--b2) transparent;
 }
 
 /* Summary cards */
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-}
+.summary-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
 .s-card {
   background: var(--bg1);
   border: 1px solid var(--b1);
-  border-radius: 9px;
-  padding: 13px 15px;
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .s-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .07em;
-  color: var(--t3);
-  text-transform: uppercase;
-  margin-bottom: 6px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .08em;
+  color: var(--t3); text-transform: uppercase; margin-bottom: 7px;
 }
 .s-val {
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  margin-bottom: 4px;
+  font-size: 24px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums; margin-bottom: 4px;
 }
 .s-sub { font-size: 11px; color: var(--t2); }
 .c-oil  { color: var(--oill); }
-.c-up   { color: var(--dn); }    /* "up" for oil shock / inflation = bad = red */
-.c-warn { color: #fb923c; }
+.c-up   { color: var(--dn); }
+.c-warn { color: #c2410c; }
 .c-ok   { color: var(--fed); }
 
 /* Interpretation card */
 .interp-card {
   background: var(--bg1);
   border: 1px solid var(--b1);
-  border-radius: 9px;
-  overflow: hidden;
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .interp-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 11px 15px;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--b0);
   background: var(--bg2);
 }
 .interp-title {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  color: var(--t2);
-  text-transform: uppercase;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  color: var(--t3); text-transform: uppercase;
 }
 .risk-badge {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  padding: 3px 10px;
-  border-radius: 100px;
-  border: 1px solid;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; padding: 3px 10px;
+  border-radius: 100px; border: 1px solid;
 }
-.risk-moderate { color: var(--risk-moderate); border-color: var(--risk-moderate); background: rgba(202,138,4,.1); }
-.risk-elevated { color: #fb923c;              border-color: #ea580c;              background: rgba(234,88,12,.1); }
-.risk-severe   { color: var(--boel);          border-color: var(--risk-severe);   background: rgba(220,38,38,.1); }
-.risk-crisis   { color: #fda4af;              border-color: var(--risk-crisis);   background: rgba(190,18,60,.12); }
-
-.interp-body { padding: 13px 15px; display: flex; flex-direction: column; gap: 10px; }
-.interp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.risk-moderate { color: var(--risk-moderate); border-color: #d97706; background: #fffbeb; }
+.risk-elevated { color: var(--risk-elevated); border-color: #ea580c; background: #fff7ed; }
+.risk-severe   { color: var(--risk-severe);   border-color: #dc2626; background: #fef2f2; }
+.risk-crisis   { color: var(--risk-crisis);   border-color: #be123c; background: #fff1f2; }
+.interp-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.interp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .interp-item {
-  background: var(--bg2);
-  border-radius: 6px;
-  padding: 9px 11px;
+  background: var(--bg2); border-radius: 6px; padding: 9px 11px;
+  border: 1px solid var(--b0);
 }
 .interp-item-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--t3);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  margin-bottom: 3px;
+  font-size: 9.5px; font-weight: 600; color: var(--t3);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
 }
-.interp-item-val { font-size: 12px; color: var(--t1); line-height: 1.35; }
+.interp-item-val { font-size: 12px; color: var(--t1); line-height: 1.4; }
 .interp-note {
-  font-size: 11px;
-  color: var(--t2);
+  font-size: 11px; color: var(--t2);
   padding: 7px 10px;
-  background: var(--bg2);
+  background: #fffbeb;
   border-radius: 5px;
-  border-left: 2px solid var(--oil);
+  border-left: 3px solid var(--oill);
 }
 
 /* Charts */
@@ -574,148 +516,90 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
 .chart-card {
   background: var(--bg1);
   border: 1px solid var(--b1);
-  border-radius: 9px;
-  padding: 14px 16px;
+  border-radius: 10px; padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .chart-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 12px;
 }
-.chart-label { font-size: 11px; font-weight: 600; color: var(--t1); }
+.chart-label { font-size: 11px; font-weight: 600; color: var(--t2); }
 .chart-meta  { font-size: 10px; color: var(--t3); font-variant-numeric: tabular-nums; }
 .chart-wrap  { position: relative; height: 190px; }
 
 /* CB table */
 .cb-table-card {
-  background: var(--bg1);
-  border: 1px solid var(--b1);
-  border-radius: 9px;
-  overflow: hidden;
+  background: var(--bg1); border: 1px solid var(--b1);
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .cb-table-head {
-  padding: 10px 16px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .09em;
-  color: var(--t2);
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--b0);
-  background: var(--bg2);
+  padding: 9px 16px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .09em;
+  color: var(--t3); text-transform: uppercase;
+  border-bottom: 1px solid var(--b0); background: var(--bg2);
 }
 .cb-tbl { width: 100%; border-collapse: collapse; }
 .cb-tbl th {
-  padding: 7px 16px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--t3);
-  text-align: left;
+  padding: 6px 16px;
+  font-size: 9.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--t3); text-align: left;
   border-bottom: 1px solid var(--b1);
 }
 .cb-tbl td {
-  padding: 9px 16px;
-  font-size: 12px;
-  color: var(--t1);
+  padding: 9px 16px; font-size: 12px; color: var(--t1);
   border-bottom: 1px solid var(--b0);
   font-variant-numeric: tabular-nums;
 }
 .cb-tbl tr:last-child td { border-bottom: none; }
 .cb-tbl tr:hover td { background: var(--bg2); }
-
 .cb-name-cell { display: flex; align-items: center; gap: 7px; }
 .cb-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .cb-dot.ecb { background: var(--ecb); }
 .cb-dot.boe { background: var(--boe); }
 .cb-dot.fed { background: var(--fed); }
-
 .pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 100px;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 100px;
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
 }
-.pill-hike { background: rgba(239,68,68,.12);  color: var(--boel); }
-.pill-hold { background: rgba(251,146,60,.12); color: #fb923c; }
-.pill-none { background: var(--bg3);           color: var(--t2); }
+.pill-hike { background: #fef2f2; color: var(--boe); border: 1px solid #fecaca; }
+.pill-hold { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.pill-none { background: var(--bg2); color: var(--t3); border: 1px solid var(--b1); }
 
 /* Methodology */
-.method-details {
-  border: 1px solid var(--b0);
-  border-radius: 9px;
-  overflow: hidden;
-}
+.method-details { border: 1px solid var(--b0); border-radius: 10px; overflow: hidden; }
 .method-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  background: var(--bg2);
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  color: var(--t3);
-  text-transform: uppercase;
-  user-select: none;
-  transition: color .15s;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 16px; background: var(--bg2); cursor: pointer;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  color: var(--t3); text-transform: uppercase;
+  user-select: none; transition: color .15s;
 }
 .method-summary:hover { color: var(--t2); }
 .method-summary::after { content: '›'; font-size: 14px; }
 .method-details[open] .method-summary::after { transform: rotate(90deg); display: inline-block; }
 .method-body {
   padding: 14px 16px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px 24px;
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 16px 24px;
 }
 .method-col-head {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--oill);
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  margin-bottom: 6px;
+  font-size: 9.5px; font-weight: 700; color: var(--oill);
+  text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px;
 }
-.method-body ul {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
+.method-body ul { list-style: none; display: flex; flex-direction: column; gap: 3px; }
 .method-body li {
-  font-size: 11px;
-  color: var(--t2);
-  line-height: 1.5;
-  padding-left: 12px;
-  position: relative;
+  font-size: 11px; color: var(--t2); line-height: 1.5;
+  padding-left: 12px; position: relative;
 }
-.method-body li::before {
-  content: '→';
-  position: absolute;
-  left: 0;
-  color: var(--t3);
-  font-size: 10px;
-}
+.method-body li::before { content: '→'; position: absolute; left: 0; color: var(--t3); font-size: 10px; }
 
 /* Stagflation alert */
 .stag-alert {
-  display: none;
-  align-items: flex-start;
-  gap: 8px;
+  display: none; align-items: flex-start; gap: 8px;
   padding: 9px 12px;
-  background: rgba(190,18,60,.07);
-  border: 1px solid rgba(190,18,60,.25);
-  border-radius: 7px;
-  font-size: 11px;
-  color: #fda4af;
-  line-height: 1.5;
+  background: #fff1f2; border: 1px solid #fecdd3;
+  border-radius: 8px; font-size: 11px; color: #9f1239; line-height: 1.5;
 }
 .stag-alert.show { display: flex; }
 
@@ -725,14 +609,14 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
 @media (max-width: 1080px) {
   .app { grid-template-columns: 1fr; height: auto; }
   .controls { border-right: none; border-bottom: 1px solid var(--b1); }
-  .summary-row { grid-template-columns: repeat(2, 1fr); }
+  .summary-row { grid-template-columns: repeat(2,1fr); }
   .chart-row   { grid-template-columns: 1fr; }
   .method-body { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   .ms-brand-name { display: none; }
-  .summary-row { grid-template-columns: repeat(2, 1fr); }
-  .interp-grid { grid-template-columns: 1fr; }
+  .summary-row   { grid-template-columns: repeat(2,1fr); }
+  .interp-grid   { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -755,7 +639,19 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
       <span id="liveStatus">Loading…</span>
     </span>
     <span class="ms-time" id="msTime"></span>
+    <button id="refreshBtn" title="Opdater markedsdata" onclick="MarketData.refresh().catch(()=>{})">↻</button>
+    <button id="settingsBtn" title="API-nøgle indstillinger">⚙</button>
   </div>
+</div>
+
+<!-- Settings panel (hidden by default) -->
+<div id="settingsPanel">
+  <span class="sp-label">Finnhub API-nøgle</span>
+  <div class="sp-input-row">
+    <input type="text" id="finnhubKey" placeholder="Indsæt Finnhub API-nøgle…" spellcheck="false" />
+    <button id="saveKeyBtn">Gem &amp; Hent</button>
+  </div>
+  <span class="sp-note">Gratis nøgle på <a href="https://finnhub.io/register" target="_blank">finnhub.io/register</a> — real-time aktier &amp; indeks. Olie og US 10Y via Yahoo proxy.</span>
 </div>
 
 <!-- ══════════════════════════════════════════════════
@@ -1087,9 +983,12 @@ const MODES = {
 /* ══════════════════════════════════════════════════
    3. MARKET DATA SERVICE
    ────────────────────────────────────────────────
-   API: Yahoo Finance query2 (no key required, CORS varies).
-   If fetch fails, falls back to MOCK_PRICES silently.
-   To use a paid API later, replace fetchOne() only.
+   Fetch strategy (in order, first success wins):
+     1. Yahoo Finance v7 batch — single request, all symbols, no key.
+     2. Same URL via allorigins.win CORS proxy — when direct is blocked.
+     3. MOCK_PRICES — hardcoded fallback, never breaks the app.
+   Strip shows "Live", "Proxy" or "Mock" so the state is always visible.
+   To replace with a paid feed, rewrite parseBatch() to match its schema.
 ══════════════════════════════════════════════════ */
 const MARKET_SYMBOLS = [
   { id:'brent',  yf:'BZ=F',   label:'Brent',   sub:'$/bbl', isOil:true,  dec:2 },
@@ -1100,50 +999,77 @@ const MARKET_SYMBOLS = [
   { id:'ust10y', yf:'^TNX',   label:'US 10Y',  sub:'%',     isOil:false, dec:2 },
 ];
 
-// Fallback mock data (approx. April 2026)
+// Last-resort mock — only shown if both live strategies fail
 const MOCK_PRICES = {
-  'BZ=F':  { price: 71.50, prev: 70.95 },
-  'CL=F':  { price: 67.80, prev: 67.25 },
-  '^GSPC': { price: 5089,  prev: 5135  },
-  '^IXIC': { price: 15920, prev: 16080 },
-  '^DJI':  { price: 38650, prev: 38940 },
-  '^TNX':  { price: 4.31,  prev: 4.28  },
+  'BZ=F':  { price: null, prev: null },
+  'CL=F':  { price: null, prev: null },
+  '^GSPC': { price: null, prev: null },
+  '^IXIC': { price: null, prev: null },
+  '^DJI':  { price: null, prev: null },
+  '^TNX':  { price: null, prev: null },
 };
 
 const MarketData = {
-  // Fetch one symbol from Yahoo Finance v8 chart API.
-  // Replace this function to swap in another data provider.
-  async fetchOne(yf) {
-    const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1d&range=2d`;
-    const r   = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  // Build the Yahoo Finance v7 batch URL for all symbols
+  _yfUrl() {
+    const syms = MARKET_SYMBOLS.map(s => s.yf).join(',');
+    return `https://query1.finance.yahoo.com/v7/finance/quote?lang=en-US&region=US&corsDomain=finance.yahoo.com&symbols=${encodeURIComponent(syms)}`;
+  },
+
+  // Parse a Yahoo Finance v7 quoteResponse into our { [yf]: {price, prev} } shape.
+  // Swap this function out if you switch to a different provider.
+  _parseBatch(data) {
+    const results = {};
+    for (const q of data.quoteResponse.result ?? []) {
+      if (q.regularMarketPrice == null) continue;
+      results[q.symbol] = {
+        price: q.regularMarketPrice,
+        prev:  q.regularMarketPreviousClose ?? q.regularMarketPrice,
+      };
+    }
+    return results;
+  },
+
+  // Strategy 1: direct fetch (works when Yahoo allows CORS for this origin)
+  async _fetchDirect() {
+    const r = await fetch(this._yfUrl(), { signal: AbortSignal.timeout(5000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const d   = await r.json();
-    const m   = d.chart.result[0].meta;
-    return {
-      price: m.regularMarketPrice,
-      prev:  m.previousClose ?? m.chartPreviousClose ?? m.regularMarketPrice,
-    };
+    return this._parseBatch(await r.json());
+  },
+
+  // Strategy 2: route through allorigins.win to bypass CORS restrictions.
+  // Response is wrapped: { contents: "<json string>", status: {...} }
+  async _fetchProxy() {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(this._yfUrl())}`;
+    const r        = await fetch(proxyUrl, { signal: AbortSignal.timeout(9000) });
+    if (!r.ok) throw new Error(`proxy HTTP ${r.status}`);
+    const wrap = await r.json();
+    return this._parseBatch(JSON.parse(wrap.contents));
   },
 
   async refresh() {
-    // Fetch all symbols concurrently; fall back per-symbol on error
-    const results = {};
-    await Promise.allSettled(
-      MARKET_SYMBOLS.map(async s => {
-        try {
-          results[s.yf] = await this.fetchOne(s.yf);
-        } catch {
-          results[s.yf] = MOCK_PRICES[s.yf];
-        }
-      })
-    );
+    let results = null;
+    let source  = 'mock'; // 'live' | 'proxy' | 'mock'
 
-    // Determine if at least oil data is live
-    const brentLive = results['BZ=F'] && results['BZ=F'] !== MOCK_PRICES['BZ=F'];
+    try {
+      results = await this._fetchDirect();
+      source  = 'live';
+    } catch (_e1) {
+      try {
+        results = await this._fetchProxy();
+        source  = 'proxy';
+      } catch (_e2) {
+        results = { ...MOCK_PRICES };
+        source  = 'mock';
+      }
+    }
+
     STATE.market     = results;
-    STATE.marketLive = brentLive;
+    STATE.marketLive = source !== 'mock';
+    STATE.dataSource = source;
 
-    if (results['BZ=F']) STATE.liveOilPrice = results['BZ=F'].price;
+    const brent = results['BZ=F'];
+    if (brent?.price) STATE.liveOilPrice = brent.price;
 
     Renderer.renderMarketStrip();
     Renderer.render();
@@ -1390,14 +1316,15 @@ const CHART_OPTS = {
   },
 };
 
-function mkChart(id, datasets, yLabel, extraOpts={}) {
+// chartPlugins: array of Chart.js plugin objects scoped to a single chart instance
+function mkChart(id, datasets, yLabel, chartPlugins=[]) {
   const ctx = document.getElementById(id).getContext('2d');
   return new Chart(ctx, {
     type: 'line',
     data: { labels: AXIS_LABELS, datasets },
+    plugins: chartPlugins,          // chart-level (not global) plugin registration
     options: {
       ...CHART_OPTS,
-      ...extraOpts,
       scales: {
         ...CHART_OPTS.scales,
         y: { ...CHART_OPTS.scales.y, title: { display: !!yLabel, text: yLabel } },
@@ -1412,13 +1339,11 @@ const Charts = {
   rate: null,
 
   init() {
+    // Oil chart gets the closurePlugin to shade the active closure period
     this.oil = mkChart('oilChart', [
-      { label:'Oliepris (USD)',  data:[], borderColor:'#c78a0a', backgroundColor:'rgba(199,138,10,.07)', fill:true, borderWidth:2, pointRadius:0, tension:.3 },
-      { label:'Baseline',        data:[], borderColor:'rgba(88,90,116,.3)', borderDash:[4,3], borderWidth:1.5, pointRadius:0 },
-    ], 'USD / tønde', { plugins: { ...CHART_OPTS.plugins }, extraPlugins:[closurePlugin] });
-
-    // Register closure plugin on oil chart directly
-    this.oil.config.plugins = [closurePlugin];
+      { label:'Oliepris (USD)', data:[], borderColor:'#c78a0a', backgroundColor:'rgba(199,138,10,.07)', fill:true, borderWidth:2, pointRadius:0, tension:.3 },
+      { label:'Baseline',       data:[], borderColor:'rgba(88,90,116,.3)', borderDash:[4,3], borderWidth:1.5, pointRadius:0 },
+    ], 'USD / tønde', [closurePlugin]);
 
     this.infl = mkChart('inflChart', [
       { label:'ECB (Eurozone)', data:[], borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.05)', fill:true, borderWidth:2, pointRadius:0, tension:.3 },
@@ -1427,9 +1352,9 @@ const Charts = {
     ], 'pp afvigelse');
 
     this.rate = mkChart('rateChart', [
-      { label:'ECB', data:[], borderColor:'#3b82f6', borderWidth:2, pointRadius:0, tension:.1, stepped:'after' },
-      { label:'BoE', data:[], borderColor:'#e05555', borderWidth:2, pointRadius:0, tension:.1, stepped:'after' },
-      { label:'Fed', data:[], borderColor:'#22c55e', borderWidth:2, pointRadius:0, tension:.1, stepped:'after' },
+      { label:'ECB', data:[], borderColor:'#3b82f6', borderWidth:2.5, pointRadius:0, tension:0, stepped:'after' },
+      { label:'BoE', data:[], borderColor:'#e05555', borderWidth:2.5, pointRadius:0, tension:0, stepped:'after' },
+      { label:'Fed', data:[], borderColor:'#22c55e', borderWidth:2.5, pointRadius:0, tension:0, stepped:'after' },
     ], 'Rente (%)');
   },
 
@@ -1461,16 +1386,26 @@ const Renderer = {
     const timeEl    = document.getElementById('msTime');
 
     container.innerHTML = MARKET_SYMBOLS.map(s => {
-      const d = STATE.market[s.yf] || MOCK_PRICES[s.yf];
-      if (!d) return '';
+      const d = STATE.market[s.yf];
+      // Show placeholder card while fetching or if data unavailable
+      if (!d || d.price == null) {
+        return `
+          <div class="ms-card${s.isOil ? ' is-oil' : ''}">
+            <div class="ms-card-info">
+              <div class="ms-card-label">${s.label}</div>
+              <div class="ms-card-price" style="color:var(--t3)">—</div>
+            </div>
+            <div class="ms-card-chg nt">—</div>
+          </div>`;
+      }
       const chg    = d.price - d.prev;
-      const chgPct = (chg / d.prev) * 100;
-      const dir    = Math.abs(chg) < 0.001 ? 'nt' : chg > 0 ? 'up' : 'dn';
+      const chgPct = d.prev ? (chg / d.prev) * 100 : 0;
+      const dir    = Math.abs(chgPct) < 0.01 ? 'nt' : chg > 0 ? 'up' : 'dn';
       const arrow  = dir === 'up' ? '▲' : dir === 'dn' ? '▼' : '—';
       const price  = s.sub === '%'
         ? `${d.price.toFixed(s.dec)}%`
         : s.dec === 0
-          ? d.price.toLocaleString('da-DK', {maximumFractionDigits:0})
+          ? d.price.toLocaleString('en-US', {maximumFractionDigits:0})
           : `$${d.price.toFixed(s.dec)}`;
       const chgTxt = `${arrow} ${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%`;
 
@@ -1484,22 +1419,29 @@ const Renderer = {
         </div>`;
     }).join('');
 
-    if (STATE.marketLive) {
+    // Source indicator: Live (direct) | Proxy | Unavailable
+    const src = STATE.dataSource ?? 'mock';
+    if (src === 'live') {
       dot.classList.remove('offline');
+      dot.style.background = 'var(--up)';
       status.textContent = 'Live';
+    } else if (src === 'proxy') {
+      dot.classList.remove('offline');
+      dot.style.background = '#f59e0b';
+      status.textContent = 'Proxy';
     } else {
       dot.classList.add('offline');
-      status.textContent = 'Mock';
+      status.textContent = 'Unavailable';
     }
 
     const now = new Date();
     timeEl.textContent = now.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit'});
 
-    // Update live oil val display
+    // Update live oil display in controls
     const liveVal = document.getElementById('liveOilVal');
-    if (STATE.liveOilPrice) {
-      liveVal.textContent = `$${STATE.liveOilPrice.toFixed(2)}`;
-    }
+    liveVal.textContent = STATE.liveOilPrice
+      ? `$${STATE.liveOilPrice.toFixed(2)}`
+      : '—';
   },
 
   renderSummaryCards(res) {
@@ -1668,16 +1610,16 @@ const App = {
     Charts.init();
     Events.init();
 
-    // Set initial mock data so chart renders before live fetch
-    STATE.market     = { ...MOCK_PRICES };
-    STATE.liveOilPrice = MOCK_PRICES['BZ=F'].price;
+    // Render the calculator immediately with default inputs (no oil price yet → manual fallback)
+    STATE.market     = { ...MOCK_PRICES };  // all prices null — strip shows dashes
+    STATE.dataSource = 'mock';
     Renderer.renderMarketStrip();
     Renderer.render();
 
-    // Attempt live market data fetch
+    // Kick off live fetch — strip updates as soon as data arrives
     MarketData.refresh().catch(() => {});
 
-    // Auto-refresh every 60 seconds
+    // Auto-refresh every 60 s (Yahoo Finance delayed ~15 min; proxy similar)
     setInterval(() => MarketData.refresh().catch(() => {}), 60_000);
   },
 };
