@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<!--
+  OIL SHOCK DASHBOARD — Phase 1 Redesign
+  ────────────────────────────────────────
+  Rationale:
+  • Market strip at top gives instant live context (Brent, WTI, equities, 10Y)
+  • Main controls reduced to 4 decisions: scenario / mode / duration / stress premium
+  • Technical CB assumptions collapsed into an "Advanced" accordion
+  • Live Brent price auto-fills the oil baseline (toggle to override)
+  • Interpretation panel gives a plain-language macro regime read
+  • Design language: calm, premium dark finance dashboard — less prototype, more product
+  • Code is split into: STATE | MarketData | Model | Interpret | Charts | Renderer | Events | App
+-->
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oil Shock Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ══════════════════════════════════════════════════
+   DESIGN TOKENS — Light theme, dark strip
+══════════════════════════════════════════════════ */
+:root {
+  /* Light surfaces */
+  --bg0: #f0f3f9;   /* page */
+  --bg1: #ffffff;   /* card */
+  --bg2: #f5f7fc;   /* tinted / hover */
+  --bg3: #ebeef7;   /* pressed */
+
+  /* Borders */
+  --b0:  #eaecf4;
+  --b1:  #dde1ef;
+  --b2:  #c9cedf;
+
+  /* Text */
+  --t0:  #111827;
+  --t1:  #374151;
+  --t2:  #6b7280;
+  --t3:  #9ca3af;
+
+  /* Semantic */
+  --up:  #15803d;
+  --dn:  #b91c1c;
+
+  /* Asset — darker for light bg */
+  --oil:  #92400e;
+  --oill: #b45309;
+  --ecb:  #1d4ed8;
+  --ecbl: #2563eb;
+  --boe:  #b91c1c;
+  --boel: #dc2626;
+  --fed:  #15803d;
+  --fedl: #16a34a;
+
+  /* Risk */
+  --risk-moderate: #92400e;
+  --risk-elevated: #9a3412;
+  --risk-severe:   #991b1b;
+  --risk-crisis:   #881337;
+
+  --font: -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ══════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--bg0);
+  color: var(--t0);
+  height: 100%;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+}
+input  { font-family: inherit; color: var(--t0); }
+button { font-family: inherit; cursor: pointer; }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+
+/* ══════════════════════════════════════════════════
+   MARKET STRIP  (stays dark — high-contrast anchor)
+══════════════════════════════════════════════════ */
+#marketStrip {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #0b0d18;
+  border-bottom: 1px solid #1c1f30;
+  display: flex;
+  align-items: stretch;
+  height: 46px;
+  overflow: hidden;
+}
+.ms-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-right: 1px solid #1c1f30;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ms-brand-icon { font-size: 15px; }
+.ms-brand-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: #4a4f6a;
+  text-transform: uppercase;
+}
+.ms-cards {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ms-cards::-webkit-scrollbar { display: none; }
+.ms-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-right: 1px solid #161926;
+  height: 100%;
+  flex-shrink: 0;
+  transition: background .12s;
+}
+.ms-card:hover { background: #131625; }
+.ms-card-info  { display: flex; flex-direction: column; }
+.ms-card-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #4a4f6a;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.ms-card-price {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #d8daf0;
+  line-height: 1.2;
+}
+.ms-card-chg {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ms-card-chg.up { color: #22c55e; }
+.ms-card-chg.dn { color: #f87171; }
+.ms-card-chg.nt { color: #4a4f6a; }
+.ms-card.is-oil .ms-card-label { color: #ca8a04; }
+.ms-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-left: 1px solid #1c1f30;
+  flex-shrink: 0;
+}
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: #4a4f6a;
+}
+.live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 2.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.live-dot.offline { background: #374151; animation: none; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.ms-time { font-size: 10.5px; color: #2d3050; font-variant-numeric: tabular-nums; }
+#refreshBtn, #settingsBtn {
+  background: none;
+  border: 1px solid #272b42;
+  border-radius: 4px;
+  color: #4a4f6a;
+  font-size: 13px;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; padding: 0;
+}
+#refreshBtn:hover, #settingsBtn:hover { border-color: #ca8a04; color: #f0b429; }
+
+/* Settings panel (drops below strip) */
+#settingsPanel {
+  background: #0f1120;
+  border-bottom: 1px solid #1c1f30;
+  padding: 10px 20px;
+  display: none;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+#settingsPanel.open { display: flex; }
+.sp-label { font-size: 11px; color: #6b7280; white-space: nowrap; }
+.sp-input-row { display: flex; gap: 6px; flex: 1; min-width: 260px; }
+#finnhubKey {
+  flex: 1;
+  background: #1a1d2e;
+  border: 1px solid #272b42;
+  border-radius: 5px;
+  color: #d8daf0;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: monospace;
+  outline: none;
+}
+#finnhubKey:focus { border-color: #ca8a04; }
+#saveKeyBtn {
+  background: #ca8a04;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#saveKeyBtn:hover { background: #b45309; }
+.sp-note {
+  font-size: 10.5px;
+  color: #374151;
+}
+.sp-note a { color: #ca8a04; text-decoration: none; }
+.sp-note a:hover { text-decoration: underline; }
+
+/* ══════════════════════════════════════════════════
+   APP LAYOUT
+══════════════════════════════════════════════════ */
+.app {
+  display: grid;
+  grid-template-columns: 310px 1fr;
+  flex: 1;          /* fills remaining body height after strip + settings panel */
+  min-height: 0;    /* prevents flex item from overflowing */
+}
+
+/* ══════════════════════════════════════════════════
+   LEFT: CONTROLS
+══════════════════════════════════════════════════ */
+.controls {
+  background: #f8f9fd;
+  border-right: 1px solid var(--b1);
+  overflow-y: auto;
+  min-height: 0;          /* critical: allows grid child to scroll */
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--b2) transparent;
+}
+.ctrl-section { display: flex; flex-direction: column; gap: 7px; }
+.ctrl-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  color: var(--t3);
+  text-transform: uppercase;
+}
+.ctrl-row-head { display: flex; justify-content: space-between; align-items: center; }
+.ctrl-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--oill);
+  font-variant-numeric: tabular-nums;
+}
+.ctrl-hints {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--t3);
+  margin-top: 1px;
+}
+
+/* Scenario buttons */
+.scenario-group { display: flex; flex-direction: column; gap: 5px; }
+.scn-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  background: var(--bg1);
+  border: 1.5px solid var(--b1);
+  border-radius: 8px;
+  color: var(--t2);
+  text-align: left;
+  transition: all .13s;
+}
+.scn-btn:hover { border-color: var(--b2); color: var(--t0); background: var(--bg2); }
+.scn-btn.active {
+  border-color: var(--oill);
+  background: #fffbeb;
+  color: var(--t0);
+  box-shadow: 0 0 0 3px rgba(180,83,9,.07);
+}
+.scn-icon  { font-size: 17px; flex-shrink: 0; }
+.scn-name  { font-size: 12px; font-weight: 600; line-height: 1.2; }
+.scn-detail { font-size: 10px; color: var(--t3); margin-top: 1px; }
+.scn-btn.active .scn-detail { color: var(--oill); }
+
+/* Mode pills */
+.mode-group { display: flex; gap: 4px; }
+.mode-btn {
+  flex: 1; padding: 6px 4px;
+  background: var(--bg1);
+  border: 1.5px solid var(--b1);
+  border-radius: 6px;
+  color: var(--t2);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  transition: all .13s;
+}
+.mode-btn:hover { border-color: var(--b2); color: var(--t1); }
+.mode-btn.active[data-mode="base"]    { border-color: var(--ecbl); color: var(--ecb);  background: #eff6ff; }
+.mode-btn.active[data-mode="stress"]  { border-color: #f97316;     color: #c2410c;     background: #fff7ed; }
+.mode-btn.active[data-mode="extreme"] { border-color: var(--boel);  color: var(--boe); background: #fef2f2; }
+.mode-note {
+  font-size: 10px; color: var(--t2);
+  padding: 4px 8px;
+  background: var(--bg2);
+  border-radius: 4px;
+  border: 1px solid var(--b0);
+  display: none;
+}
+.mode-note.show { display: block; }
+
+/* Sliders */
+input[type="range"] {
+  width: 100%; height: 3px;
+  -webkit-appearance: none; appearance: none;
+  background: var(--b2); border-radius: 2px;
+  outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--oill);
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px var(--b2);
+  cursor: pointer; transition: transform .1s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+/* Oil toggle */
+.oil-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg1);
+  border: 1.5px solid var(--b1);
+  border-radius: 7px;
+}
+.toggle-label {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; font-size: 12px; color: var(--t1); user-select: none;
+}
+.toggle-label input[type="checkbox"] { display: none; }
+.toggle-track {
+  width: 32px; height: 17px;
+  background: var(--b2); border-radius: 10px;
+  position: relative; transition: background .2s; flex-shrink: 0;
+}
+.toggle-track::after {
+  content: ''; position: absolute;
+  width: 13px; height: 13px;
+  background: white; border-radius: 50%;
+  top: 2px; left: 2px; transition: all .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+.toggle-label input:checked + .toggle-track { background: var(--oill); }
+.toggle-label input:checked + .toggle-track::after { left: 17px; }
+.live-oil-val {
+  font-size: 13px; font-weight: 700; color: var(--oill);
+  font-variant-numeric: tabular-nums;
+}
+.manual-oil { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.manual-oil input {
+  flex: 1; background: var(--bg1);
+  border: 1.5px solid var(--b1); border-radius: 6px;
+  padding: 6px 10px; font-size: 13px;
+  font-variant-numeric: tabular-nums; outline: none;
+  transition: border-color .15s;
+}
+.manual-oil input:focus { border-color: var(--oill); }
+.manual-oil-unit { font-size: 11px; color: var(--t3); white-space: nowrap; }
+.hidden { display: none !important; }
+
+/* Advanced accordion */
+.adv-details { border: 1.5px solid var(--b1); border-radius: 8px; overflow: hidden; }
+.adv-summary {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px;
+  background: var(--bg2); cursor: pointer;
+  font-size: 10.5px; font-weight: 600; color: var(--t3);
+  letter-spacing: .06em; text-transform: uppercase;
+  transition: color .15s; user-select: none;
+}
+.adv-summary:hover { color: var(--t2); }
+.adv-caret { font-size: 14px; transition: transform .2s; }
+.adv-details[open] .adv-caret { transform: rotate(90deg); }
+.adv-body {
+  padding: 13px 12px;
+  background: var(--bg1);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.cbi-block { display: flex; flex-direction: column; gap: 5px; }
+.cbi-head { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--t1); }
+.cbi-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.cbi-dot.ecb { background: var(--ecb); }
+.cbi-dot.boe { background: var(--boe); }
+.cbi-dot.fed { background: var(--fed); }
+.cbi-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.cbi-field { display: flex; flex-direction: column; gap: 3px; }
+.cbi-field label { font-size: 10px; color: var(--t3); }
+.cbi-field input {
+  background: var(--bg2); border: 1.5px solid var(--b1);
+  border-radius: 5px; padding: 5px 8px;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+  outline: none; transition: border-color .15s; width: 100%;
+}
+.cbi-field input:focus { border-color: var(--oill); }
+
+/* ══════════════════════════════════════════════════
+   RIGHT: DASHBOARD
+══════════════════════════════════════════════════ */
+.dashboard {
+  overflow-y: auto;
+  min-height: 0;    /* allows grid child to scroll */
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--b2) transparent;
+}
+
+/* Summary cards */
+.summary-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.s-card {
+  background: var(--bg1);
+  border: 1px solid var(--b1);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.s-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .08em;
+  color: var(--t3); text-transform: uppercase; margin-bottom: 7px;
+}
+.s-val {
+  font-size: 24px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums; margin-bottom: 4px;
+}
+.s-sub { font-size: 11px; color: var(--t2); }
+.c-oil  { color: var(--oill); }
+.c-up   { color: var(--dn); }
+.c-warn { color: #c2410c; }
+.c-ok   { color: var(--fed); }
+
+/* Interpretation card */
+.interp-card {
+  background: var(--bg1);
+  border: 1px solid var(--b1);
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.interp-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--b0);
+  background: var(--bg2);
+}
+.interp-title {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  color: var(--t3); text-transform: uppercase;
+}
+.risk-badge {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; padding: 3px 10px;
+  border-radius: 100px; border: 1px solid;
+}
+.risk-moderate { color: var(--risk-moderate); border-color: #d97706; background: #fffbeb; }
+.risk-elevated { color: var(--risk-elevated); border-color: #ea580c; background: #fff7ed; }
+.risk-severe   { color: var(--risk-severe);   border-color: #dc2626; background: #fef2f2; }
+.risk-crisis   { color: var(--risk-crisis);   border-color: #be123c; background: #fff1f2; }
+.interp-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.interp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.interp-item {
+  background: var(--bg2); border-radius: 6px; padding: 9px 11px;
+  border: 1px solid var(--b0);
+}
+.interp-item-label {
+  font-size: 9.5px; font-weight: 600; color: var(--t3);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
+}
+.interp-item-val { font-size: 12px; color: var(--t1); line-height: 1.4; }
+.interp-note {
+  font-size: 11px; color: var(--t2);
+  padding: 7px 10px;
+  background: #fffbeb;
+  border-radius: 5px;
+  border-left: 3px solid var(--oill);
+}
+
+/* Charts */
+.charts-area { display: flex; flex-direction: column; gap: 10px; }
+.chart-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chart-card {
+  background: var(--bg1);
+  border: 1px solid var(--b1);
+  border-radius: 10px; padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.chart-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+.chart-label { font-size: 11px; font-weight: 600; color: var(--t2); }
+.chart-meta  { font-size: 10px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.chart-wrap  { position: relative; height: 190px; }
+
+/* CB table */
+.cb-table-card {
+  background: var(--bg1); border: 1px solid var(--b1);
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.cb-table-head {
+  padding: 9px 16px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .09em;
+  color: var(--t3); text-transform: uppercase;
+  border-bottom: 1px solid var(--b0); background: var(--bg2);
+}
+.cb-tbl { width: 100%; border-collapse: collapse; }
+.cb-tbl th {
+  padding: 6px 16px;
+  font-size: 9.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--t3); text-align: left;
+  border-bottom: 1px solid var(--b1);
+}
+.cb-tbl td {
+  padding: 9px 16px; font-size: 12px; color: var(--t1);
+  border-bottom: 1px solid var(--b0);
+  font-variant-numeric: tabular-nums;
+}
+.cb-tbl tr:last-child td { border-bottom: none; }
+.cb-tbl tr:hover td { background: var(--bg2); }
+.cb-name-cell { display: flex; align-items: center; gap: 7px; }
+.cb-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.cb-dot.ecb { background: var(--ecb); }
+.cb-dot.boe { background: var(--boe); }
+.cb-dot.fed { background: var(--fed); }
+.pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 100px;
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.pill-hike { background: #fef2f2; color: var(--boe); border: 1px solid #fecaca; }
+.pill-hold { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.pill-none { background: var(--bg2); color: var(--t3); border: 1px solid var(--b1); }
+
+/* Methodology */
+.method-details { border: 1px solid var(--b0); border-radius: 10px; overflow: hidden; }
+.method-summary {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 16px; background: var(--bg2); cursor: pointer;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  color: var(--t3); text-transform: uppercase;
+  user-select: none; transition: color .15s;
+}
+.method-summary:hover { color: var(--t2); }
+.method-summary::after { content: '›'; font-size: 14px; }
+.method-details[open] .method-summary::after { transform: rotate(90deg); display: inline-block; }
+.method-body {
+  padding: 14px 16px;
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 16px 24px;
+}
+.method-col-head {
+  font-size: 9.5px; font-weight: 700; color: var(--oill);
+  text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px;
+}
+.method-body ul { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.method-body li {
+  font-size: 11px; color: var(--t2); line-height: 1.5;
+  padding-left: 12px; position: relative;
+}
+.method-body li::before { content: '→'; position: absolute; left: 0; color: var(--t3); font-size: 10px; }
+
+/* Stagflation alert */
+.stag-alert {
+  display: none; align-items: flex-start; gap: 8px;
+  padding: 9px 12px;
+  background: #fff1f2; border: 1px solid #fecdd3;
+  border-radius: 8px; font-size: 11px; color: #9f1239; line-height: 1.5;
+}
+.stag-alert.show { display: flex; }
+
+/* ══════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════ */
+@media (max-width: 1080px) {
+  .app { grid-template-columns: 1fr; flex: none; height: auto; }
+  .controls { border-right: none; border-bottom: 1px solid var(--b1); }
+  .summary-row { grid-template-columns: repeat(2,1fr); }
+  .chart-row   { grid-template-columns: 1fr; }
+  .method-body { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .ms-brand-name { display: none; }
+  .summary-row   { grid-template-columns: repeat(2,1fr); }
+  .interp-grid   { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     MARKET STRIP
+══════════════════════════════════════════════════ -->
+<div id="marketStrip">
+  <div class="ms-brand">
+    <span class="ms-brand-icon">🛢</span>
+    <span class="ms-brand-name">Oil Shock Dashboard</span>
+  </div>
+  <div id="msCards" class="ms-cards">
+    <!-- injected by JS -->
+  </div>
+  <div class="ms-meta">
+    <span class="live-indicator">
+      <span class="live-dot" id="liveDot"></span>
+      <span id="liveStatus">Loading…</span>
+    </span>
+    <span class="ms-time" id="msTime"></span>
+    <button id="refreshBtn" title="Opdater markedsdata" onclick="MarketData.refresh().catch(()=>{})">↻</button>
+    <button id="settingsBtn" title="API-nøgle indstillinger">⚙</button>
+  </div>
+</div>
+
+<!-- Settings panel (hidden by default) -->
+<div id="settingsPanel">
+  <span class="sp-label">Finnhub API-nøgle</span>
+  <div class="sp-input-row">
+    <input type="text" id="finnhubKey" placeholder="Indsæt Finnhub API-nøgle…" spellcheck="false" />
+    <button id="saveKeyBtn">Gem &amp; Hent</button>
+  </div>
+  <span class="sp-note">Gratis nøgle på <a href="https://finnhub.io/register" target="_blank">finnhub.io/register</a> — real-time aktier &amp; indeks. Olie og US 10Y via Yahoo proxy.</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     APP LAYOUT
+══════════════════════════════════════════════════ -->
+<div class="app">
+
+  <!-- ── LEFT: CONTROLS ── -->
+  <aside class="controls">
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">Scenarie</div>
+      <div class="scenario-group">
+        <button class="scn-btn" data-scn="aden">
+          <span class="scn-icon">⚓</span>
+          <div><div class="scn-name">Bay of Aden</div><div class="scn-detail">Bab-el-Mandeb · +10% stød</div></div>
+        </button>
+        <button class="scn-btn active" data-scn="hormuz">
+          <span class="scn-icon">🌊</span>
+          <div><div class="scn-name">Hormuzstrædet</div><div class="scn-detail">Persisk Golf · +45% stød</div></div>
+        </button>
+        <button class="scn-btn" data-scn="both">
+          <span class="scn-icon">🔥</span>
+          <div><div class="scn-name">Begge stræder</div><div class="scn-detail">Worst case · +52% stød</div></div>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">Tilstand</div>
+      <div class="mode-group">
+        <button class="mode-btn active" data-mode="base">Base</button>
+        <button class="mode-btn" data-mode="stress">Stress</button>
+        <button class="mode-btn" data-mode="extreme">Extreme</button>
+      </div>
+      <div class="mode-note" id="modeNote"></div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-row-head">
+        <span class="ctrl-label">Varighed</span>
+        <span class="ctrl-val" id="durVal">6 mdr.</span>
+      </div>
+      <input type="range" id="durSlider" min="1" max="24" value="6" step="1">
+      <div class="ctrl-hints"><span>1 mdr.</span><span>12 mdr.</span><span>24 mdr.</span></div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-row-head">
+        <span class="ctrl-label">Markedsstress-præmie</span>
+        <span class="ctrl-val" id="panicVal">+15%</span>
+      </div>
+      <input type="range" id="panicSlider" min="0" max="50" value="15" step="1">
+      <div class="ctrl-hints"><span>Ingen</span><span>Moderat</span><span>Ekstrem</span></div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">Oliepris baseline</div>
+      <div class="oil-row">
+        <label class="toggle-label">
+          <input type="checkbox" id="liveOilToggle" checked>
+          <span class="toggle-track"></span>
+          <span>Live Brent</span>
+        </label>
+        <span class="live-oil-val" id="liveOilVal">—</span>
+      </div>
+      <div class="manual-oil hidden" id="manualOilRow">
+        <input type="number" id="manualOil" value="109" min="20" max="250" step="0.5">
+        <span class="manual-oil-unit">USD / tønde</span>
+      </div>
+    </div>
+
+    <!-- Advanced assumptions -->
+    <details class="adv-details">
+      <summary class="adv-summary">
+        <span>Avancerede antagelser</span>
+        <span class="adv-caret">›</span>
+      </summary>
+      <div class="adv-body">
+
+        <div class="ctrl-section">
+          <div class="ctrl-row-head">
+            <span class="ctrl-label">CB reaktionsstyrke</span>
+            <span class="ctrl-val" id="hawkVal">Neutral</span>
+          </div>
+          <input type="range" id="hawkSlider" min="0" max="100" value="50" step="5">
+          <div class="ctrl-hints"><span>Dueagtig</span><span>Neutral</span><span>Høgeagtig</span></div>
+        </div>
+
+        <div class="cbi-block">
+          <div class="cbi-head"><span class="cbi-dot ecb"></span> ECB — Eurozone</div>
+          <div class="cbi-fields">
+            <div class="cbi-field"><label>Rente (%)</label><input type="number" id="ecbRate" value="2.50" step="0.25"></div>
+            <div class="cbi-field"><label>Inflation (%)</label><input type="number" id="ecbInflation" value="2.2" step="0.1"></div>
+          </div>
+        </div>
+
+        <div class="cbi-block">
+          <div class="cbi-head"><span class="cbi-dot boe"></span> BoE — United Kingdom</div>
+          <div class="cbi-fields">
+            <div class="cbi-field"><label>Rente (%)</label><input type="number" id="boeRate" value="4.25" step="0.25"></div>
+            <div class="cbi-field"><label>Inflation (%)</label><input type="number" id="boeInflation" value="2.8" step="0.1"></div>
+          </div>
+        </div>
+
+        <div class="cbi-block">
+          <div class="cbi-head"><span class="cbi-dot fed"></span> Fed — USA</div>
+          <div class="cbi-fields">
+            <div class="cbi-field"><label>Rente (%)</label><input type="number" id="fedRate" value="4.50" step="0.25"></div>
+            <div class="cbi-field"><label>Inflation (%)</label><input type="number" id="fedInflation" value="2.7" step="0.1"></div>
+          </div>
+        </div>
+
+      </div>
+    </details>
+
+  </aside>
+
+  <!-- ── RIGHT: DASHBOARD ── -->
+  <main class="dashboard">
+
+    <!-- Stagflation alert -->
+    <div class="stag-alert" id="stagAlert">
+      <span>⚠</span>
+      <span><strong>Stagflationsdilemma:</strong> Hormuz-scenariet er både kraftigt inflationært og kontraktivt. Centralbankerne risikerer at stramme politik ind i en begyndende recession. Modellen dæmper CB-reaktionen med 25%.</span>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="summary-row">
+      <div class="s-card">
+        <div class="s-label">Peak oliepris</div>
+        <div class="s-val c-oil" id="sumPeakOil">—</div>
+        <div class="s-sub" id="sumOilShock">—</div>
+      </div>
+      <div class="s-card">
+        <div class="s-label">Max inflationsimpakt</div>
+        <div class="s-val c-up" id="sumPeakInfl">—</div>
+        <div class="s-sub" id="sumInflSub">—</div>
+      </div>
+      <div class="s-card">
+        <div class="s-label">Højeste renteændring</div>
+        <div class="s-val c-warn" id="sumRateChg">—</div>
+        <div class="s-sub" id="sumRateSub">—</div>
+      </div>
+      <div class="s-card">
+        <div class="s-label">Olie-normalisering</div>
+        <div class="s-val c-ok" id="sumNorm">—</div>
+        <div class="s-sub">mdr. efter lukning</div>
+      </div>
+    </div>
+
+    <!-- Interpretation -->
+    <div class="interp-card">
+      <div class="interp-header">
+        <span class="interp-title">Makro-regime vurdering</span>
+        <span class="risk-badge" id="riskBadge">—</span>
+      </div>
+      <div class="interp-body">
+        <div class="interp-grid">
+          <div class="interp-item">
+            <div class="interp-item-label">Regime</div>
+            <div class="interp-item-val" id="intRegime">—</div>
+          </div>
+          <div class="interp-item">
+            <div class="interp-item-label">CB Politik-bias</div>
+            <div class="interp-item-val" id="intCB">—</div>
+          </div>
+          <div class="interp-item">
+            <div class="interp-item-label">Aktier</div>
+            <div class="interp-item-val" id="intEq">—</div>
+          </div>
+          <div class="interp-item">
+            <div class="interp-item-label">Obligationer</div>
+            <div class="interp-item-val" id="intBonds">—</div>
+          </div>
+        </div>
+        <div class="interp-note" id="intNote">—</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-area">
+      <div class="chart-card">
+        <div class="chart-head">
+          <span class="chart-label">🛢 Oliepris (USD / tønde)</span>
+          <span class="chart-meta" id="oilChartMeta">—</span>
+        </div>
+        <div class="chart-wrap"><canvas id="oilChart"></canvas></div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-head"><span class="chart-label">📈 Inflationsafvigelse (pp fra startniveau)</span></div>
+          <div class="chart-wrap"><canvas id="inflChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><span class="chart-label">🏦 Centralbankrenter — projiceret sti (%)</span></div>
+          <div class="chart-wrap"><canvas id="rateChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CB Table -->
+    <div class="cb-table-card">
+      <div class="cb-table-head">Centralbank — projiceret reaktion</div>
+      <table class="cb-tbl">
+        <thead>
+          <tr>
+            <th>Bank</th>
+            <th>Nuværende rente</th>
+            <th>Peak rente</th>
+            <th>Samlet ændring</th>
+            <th>Første reaktion</th>
+            <th>Vurdering</th>
+          </tr>
+        </thead>
+        <tbody id="cbTbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Methodology -->
+    <details class="method-details">
+      <summary class="method-summary">Modelantagelser &amp; metodik</summary>
+      <div class="method-body">
+        <div>
+          <div class="method-col-head">Olieprisstød</div>
+          <ul>
+            <li>Bay of Aden: +10% initialt, +0,8 pp/mdr. (maks 22%)</li>
+            <li>Hormuzstrædet: +45% initialt, +2,5 pp/mdr. (maks 75%)</li>
+            <li>Begge: +52% initialt, +3 pp/mdr. (maks 80%)</li>
+            <li>Stress ×1,3 · Extreme ×1,6 på stødstørrelse</li>
+            <li>Eksponentiel normalisering (−28%/mdr.) efter lukning</li>
+          </ul>
+        </div>
+        <div>
+          <div class="method-col-head">Inflations-transmission</div>
+          <ul>
+            <li>0,30 pp CPI per 10% olieprisstigning (IMF-estimat)</li>
+            <li>Direkte effekt: 2 mdrs. forsinkelse</li>
+            <li>Andenrundeeffekter: +30% af direkte, 4 mdrs. forsinkelse</li>
+            <li>Energivægt CPI: EU ≈9%, UK ≈8%, US ≈7%</li>
+          </ul>
+        </div>
+        <div>
+          <div class="method-col-head">Centralbankmodel</div>
+          <ul>
+            <li>Simplificeret Taylor-regel: Δi ≈ koeff × Δπ</li>
+            <li>Aktivering: 3+ mdr. over inflationsmål + 4 mdrs. forsinkelse</li>
+            <li>Fed 1,1× · BoE 1,05× · ECB 1,0× multiplikator</li>
+            <li>Hormuz: CB-reaktion dæmpes 25% (stagflationsdilemma)</li>
+            <li>Rentecuts: når inflation nærmer sig 2%-mål</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+
+  </main>
+</div><!-- end .app -->
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════════════
+   1. CONSTANTS & HELPERS
+══════════════════════════════════════════════════ */
+const N      = 37;                             // months 0..36
+const MONTHS = Array.from({length: N}, (_,i) => i);
+
+// Month axis labels starting April 2026
+const AXIS_LABELS = (() => {
+  const out = [];
+  const d   = new Date(2026, 3, 1);           // April 2026
+  for (let i = 0; i < N; i++) {
+    out.push(d.toLocaleDateString('da-DK', {month:'short', year:'2-digit'}));
+    d.setMonth(d.getMonth() + 1);
+  }
+  return out;
+})();
+
+function fmtN(n, dec=1)  { return n.toFixed(dec); }
+function fmtUSD(n)        { return `$${fmtN(n, 0)}`; }
+function fmtPct(n, sign=true) {
+  return (sign && n >= 0 ? '+' : '') + fmtN(n) + '%';
+}
+function fmtBps(n) {
+  const b = Math.round(n * 100);
+  return (b >= 0 ? '+' : '') + b + ' bp';
+}
+function monthLabel(m) {
+  if (m < 0 || m >= N) return '—';
+  return AXIS_LABELS[m];
+}
+
+/* ══════════════════════════════════════════════════
+   2. APP STATE
+══════════════════════════════════════════════════ */
+const STATE = {
+  scenario:      'hormuz',
+  mode:          'base',
+  duration:      6,
+  panicPct:      15,
+  hawkishness:   50,
+  useLiveOil:    true,
+  manualOilPrice: 109,
+  liveOilPrice:  null,
+  // CB params (overridden by inputs)
+  ecbRate: 2.50, ecbInflation: 2.2,
+  boeRate: 4.25, boeInflation: 2.8,
+  fedRate: 4.50, fedInflation: 2.7,
+  // Market data store
+  market: {},
+  marketLive: false,
+};
+
+/* ══════════════════════════════════════════════════
+   2b. SCENARIO & MODE CONFIG
+══════════════════════════════════════════════════ */
+const SCENARIOS = {
+  aden:   { instantShock: 0.10, monthlyGrowth: 0.008, cap: 0.22, stagflation: false },
+  hormuz: { instantShock: 0.45, monthlyGrowth: 0.025, cap: 0.75, stagflation: true  },
+  both:   { instantShock: 0.52, monthlyGrowth: 0.030, cap: 0.80, stagflation: true  },
+};
+
+const MODES = {
+  base:    { shockMult: 1.0, minPanic: 0,  note: '' },
+  stress:  { shockMult: 1.3, minPanic: 20, note: '× 1,3 stød · min. 20% markedsstress' },
+  extreme: { shockMult: 1.6, minPanic: 40, note: '× 1,6 stød · min. 40% markedsstress' },
+};
+
+/* ══════════════════════════════════════════════════
+   3. MARKET DATA SERVICE
+   ────────────────────────────────────────────────
+   Fetch strategy (first success wins):
+     1. Finnhub (if API key set) — real-time stocks & indices, 60 req/min free.
+        Get a free key at finnhub.io/register → stored in localStorage.
+     2. Yahoo Finance v7 batch via allorigins.win CORS proxy — no key needed.
+        Always used for Brent, WTI, and US 10Y (not in Finnhub free tier).
+     3. Null prices — strip shows "—". Never breaks the calculator.
+
+   To add another provider: implement a new _fetch* method and slot it in refresh().
+══════════════════════════════════════════════════ */
+const MARKET_SYMBOLS = [
+  // yf = Yahoo Finance symbol, fh = Finnhub symbol (null = Yahoo only)
+  { id:'brent',  yf:'BZ=F',  fh:null,      label:'Brent',   sub:'$/bbl', isOil:true,  dec:2 },
+  { id:'wti',    yf:'CL=F',  fh:null,      label:'WTI',     sub:'$/bbl', isOil:true,  dec:2 },
+  { id:'spx',    yf:'^GSPC', fh:'^GSPC',   label:'S&P 500', sub:'',      isOil:false, dec:0 },
+  { id:'nasdaq', yf:'^IXIC', fh:'^IXIC',   label:'Nasdaq',  sub:'',      isOil:false, dec:0 },
+  { id:'dow',    yf:'^DJI',  fh:'^DJI',    label:'Dow',     sub:'',      isOil:false, dec:0 },
+  { id:'ust10y', yf:'^TNX',  fh:null,      label:'US 10Y',  sub:'%',     isOil:false, dec:2 },
+];
+
+// Null prices = show dashes. Never use fake hardcoded prices.
+const MOCK_PRICES = Object.fromEntries(
+  MARKET_SYMBOLS.map(s => [s.yf, { price: null, prev: null }])
+);
+
+// CORS proxy factories — each returns a URL that proxies the given target URL.
+// All return raw JSON (no wrapper). allorigins /raw also returns raw.
+const CORS_PROXIES = [
+  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
+];
+
+const MarketData = {
+  _key() { return localStorage.getItem('finnhub_key') || ''; },
+
+  // ── Finnhub: single real-time quote
+  async _finnhubQuote(symbol, key) {
+    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${key}`;
+    const r   = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error(`FH ${r.status}`);
+    const d = await r.json();
+    if (!d.c || d.c === 0) throw new Error('empty');
+    return { price: d.c, prev: d.pc };
+  },
+
+  // ── Parse Yahoo Finance v8 chart response (per-symbol endpoint)
+  _parseV8(data) {
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta?.regularMarketPrice) throw new Error('no price');
+    return {
+      price: meta.regularMarketPrice,
+      prev:  meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice,
+    };
+  },
+
+  // ── Fetch one Yahoo symbol by racing all proxies simultaneously.
+  //    Also tries a direct fetch — works on some networks / CORS-permissive setups.
+  async _fetchOneYahoo(yfSym) {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSym)}?interval=1d&range=5d&includePrePost=false`;
+
+    const tryFetch = async (reqUrl) => {
+      const r = await fetch(reqUrl, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error(r.status);
+      let d = await r.json();
+      // allorigins /get wraps; /raw and others return directly
+      if (d.contents) d = JSON.parse(d.contents);
+      return this._parseV8(d);
+    };
+
+    // Race: direct + all proxies — first success wins
+    return await Promise.any([
+      tryFetch(url),
+      ...CORS_PROXIES.map(mk => tryFetch(mk(url))),
+    ]);
+  },
+
+  async refresh() {
+    const key     = this._key();
+    const results = { ...MOCK_PRICES };
+    let   anyLive = false;
+
+    // Fetch all symbols concurrently; Finnhub first if key+fh, else Yahoo race
+    await Promise.allSettled(MARKET_SYMBOLS.map(async s => {
+      if (key && s.fh) {
+        try {
+          results[s.yf] = await this._finnhubQuote(s.fh, key);
+          anyLive = true; return;
+        } catch { /* fall through to Yahoo */ }
+      }
+      try {
+        results[s.yf] = await this._fetchOneYahoo(s.yf);
+        anyLive = true;
+      } catch { /* strip shows — */ }
+    }));
+
+    const fhLive = key && MARKET_SYMBOLS.some(s => s.fh && results[s.yf].price != null);
+    const yfLive = MARKET_SYMBOLS.some(s => !s.fh && results[s.yf].price != null);
+    STATE.market     = results;
+    STATE.marketLive = anyLive;
+    STATE.dataSource = !anyLive ? 'unavailable'
+                     : fhLive && yfLive ? 'Finnhub+Yahoo'
+                     : fhLive ? 'Finnhub' : 'Yahoo';
+
+    const brent = results['BZ=F'];
+    if (brent?.price) STATE.liveOilPrice = brent.price;
+
+    Renderer.renderMarketStrip();
+    Renderer.render();
+  },
+};
+
+/* ══════════════════════════════════════════════════
+   4. MODEL
+══════════════════════════════════════════════════ */
+const Model = {
+  oilBaseline(state) {
+    if (state.useLiveOil && state.liveOilPrice) return state.liveOilPrice;
+    return state.manualOilPrice;
+  },
+
+  buildOilSeries(state) {
+    const sp          = SCENARIOS[state.scenario];
+    const modeMult    = MODES[state.mode].shockMult;
+    const effectPanic = Math.max(state.panicPct, MODES[state.mode].minPanic);
+    const panicMult   = 1 + effectPanic / 100;
+    const baseline    = this.oilBaseline(state);
+
+    const rawPeak  = Math.min(
+      sp.instantShock + sp.monthlyGrowth * Math.min(state.duration, 14),
+      sp.cap
+    );
+    const peakShock = rawPeak * modeMult * panicMult;
+
+    return MONTHS.map(m => {
+      if (m === 0) return baseline;
+      const D = state.duration;
+      if (m <= D) {
+        if (m <= 2) return baseline * (1 + peakShock * (m / 2));
+        const drift = 1 + peakShock * (1 + 0.004 * (m - 2));
+        return baseline * Math.min(drift, 1 + sp.cap * panicMult * modeMult);
+      }
+      // Exponential decay post-closure
+      return baseline * (1 + peakShock * Math.exp(-0.28 * (m - D)));
+    });
+  },
+
+  buildInflationSeries(oilPrices, baseCPI, baseline) {
+    const PASS   = 0.030; // 0.30 pp per 10% oil
+    const SR_FAC = 0.30;  // second-round = 30% of direct
+    return MONTHS.map(m => {
+      const lag2 = m >= 2 ? (oilPrices[m-2] - baseline) / baseline * 100 : 0;
+      const lag4 = m >= 4 ? (oilPrices[m-4] - baseline) / baseline * 100 : 0;
+      return baseCPI + lag2 * PASS + lag4 * PASS * SR_FAC;
+    });
+  },
+
+  buildRateSeries(baseRate, inflSeries, cbMult, hawkishness, stagflation) {
+    const TARGET = 2.0;
+    let taylor = 0.5 + (hawkishness / 100) * 2.0;   // 0.5 → 2.5
+    if (stagflation) taylor *= 0.75;                 // dampen for stag scenarios
+
+    const rates = new Array(N);
+    rates[0] = baseRate;
+
+    for (let m = 1; m < N; m++) {
+      const prev     = rates[m-1];
+      const infl     = inflSeries[m];
+      const overshoot = infl - TARGET;
+
+      // Count months of persistent elevated inflation (rolling 6m)
+      let elevated = 0;
+      for (let i = Math.max(0, m-6); i < m; i++) {
+        if (inflSeries[i] > TARGET + 0.3) elevated++;
+      }
+
+      const shouldAct = m >= 4 && elevated >= 3;
+      let target = baseRate;
+
+      if (shouldAct && overshoot > 0) {
+        target = baseRate + taylor * cbMult * overshoot;
+      }
+      // Begin easing when inflation back near target
+      if (overshoot < 0.25 && prev > baseRate + 0.05) {
+        target = baseRate + Math.max(0, overshoot * 0.4);
+      }
+
+      const step = Math.min(Math.abs(target - prev), 0.25) * Math.sign(target - prev);
+      rates[m] = Math.max(0, prev + step);
+    }
+    return rates;
+  },
+
+  run(state) {
+    const baseline  = this.oilBaseline(state);
+    const oilPrices = this.buildOilSeries(state);
+    const oilShock  = oilPrices.map(p => (p - baseline) / baseline * 100);
+
+    const euInfl = this.buildInflationSeries(oilPrices, state.ecbInflation, baseline);
+    const ukInfl = this.buildInflationSeries(oilPrices, state.boeInflation, baseline);
+    const usInfl = this.buildInflationSeries(oilPrices, state.fedInflation, baseline);
+
+    const stag = SCENARIOS[state.scenario].stagflation;
+    const ecbR = this.buildRateSeries(state.ecbRate, euInfl, 1.00, state.hawkishness, stag);
+    const boeR = this.buildRateSeries(state.boeRate, ukInfl, 1.05, state.hawkishness, stag);
+    const fedR = this.buildRateSeries(state.fedRate, usInfl, 1.10, state.hawkishness, stag);
+
+    const peakOil    = Math.max(...oilPrices);
+    const maxShock   = Math.max(...oilShock);
+    const peakEuInfl = Math.max(...euInfl);
+    const peakUkInfl = Math.max(...ukInfl);
+    const peakUsInfl = Math.max(...usInfl);
+
+    const euDelta = peakEuInfl - state.ecbInflation;
+    const ukDelta = peakUkInfl - state.boeInflation;
+    const usDelta = peakUsInfl - state.fedInflation;
+    const peakInflDelta = Math.max(euDelta, ukDelta, usDelta);
+    const peakInflCB    = peakInflDelta === euDelta ? 'ECB' : peakInflDelta === ukDelta ? 'BoE' : 'Fed';
+
+    const ecbChg = Math.max(...ecbR) - state.ecbRate;
+    const boeChg = Math.max(...boeR) - state.boeRate;
+    const fedChg = Math.max(...fedR) - state.fedRate;
+
+    const firstHike = r => r.findIndex((v, i) => i > 0 && v > r[0] + 0.05);
+
+    // Months to normalize oil price (within 5% of baseline after closure ends)
+    let normMonths = '> 24';
+    for (let m = state.duration; m < N; m++) {
+      if ((oilPrices[m] - baseline) / baseline < 0.05) {
+        normMonths = m - state.duration;
+        break;
+      }
+    }
+
+    return {
+      baseline, oilPrices, oilShock,
+      euInfl, ukInfl, usInfl,
+      euInflDelta: euInfl.map(v => v - state.ecbInflation),
+      ukInflDelta: ukInfl.map(v => v - state.boeInflation),
+      usInflDelta: usInfl.map(v => v - state.fedInflation),
+      ecbR, boeR, fedR,
+      peakOil, maxShock,
+      peakInflDelta, peakInflCB,
+      ecbChg, boeChg, fedChg,
+      firstHikeECB: firstHike(ecbR),
+      firstHikeBoE: firstHike(boeR),
+      firstHikeFed: firstHike(fedR),
+      normMonths, stag,
+    };
+  },
+};
+
+/* ══════════════════════════════════════════════════
+   5. INTERPRETATION ENGINE (rule-based)
+══════════════════════════════════════════════════ */
+const Interpret = {
+  run(res, state) {
+    const shock = res.maxShock;
+    const chg   = Math.max(res.ecbChg, res.boeChg, res.fedChg);
+    const dur   = state.duration;
+    const stag  = res.stag;
+
+    let regime, cbBias, equities, bonds, risk, riskClass, note;
+
+    if (stag || shock >= 50) {
+      regime    = stag ? 'Stagflationary energikrise' : 'Kritisk udbudschok';
+      cbBias    = 'Tvungen stramning — vækstofring accepteret';
+      equities  = 'Stærkt eksponeret — alvorlig margin- og efterspørgselskompression';
+      bonds     = 'Konflikt: sikker havn vs. inflationspræmie';
+      risk      = 'Krise';
+      riskClass = 'risk-crisis';
+    } else if (shock >= 25) {
+      regime    = 'Markant inflationsstød';
+      cbBias    = 'Gradvis stramning — meeting-by-meeting';
+      equities  = 'Sårbare — forbrugere og industri under pres';
+      bonds     = 'Inflationspræmie stiger — yield-kurve stejler';
+      risk      = 'Alvorlig';
+      riskClass = 'risk-severe';
+    } else if (shock >= 10) {
+      regime    = 'Moderat inflationsstød';
+      cbBias    = dur <= 3 ? 'Afventende — stød sandsynligvis kortvarigt' : 'Forsigtig stramningsbias';
+      equities  = 'Under pres — energisektoren outperformer';
+      bonds     = 'Moderat rentepres, korte løbetider primært ramt';
+      risk      = 'Forhøjet';
+      riskClass = 'risk-elevated';
+    } else {
+      regime    = 'Håndterbart udbudsstød';
+      cbBias    = 'Afventende — kigger sandsynligvis igennem';
+      equities  = 'Begrænset kortsigtet effekt';
+      bonds     = 'Minimalt pres forventet';
+      risk      = 'Moderat';
+      riskClass = 'risk-moderate';
+    }
+
+    if (dur <= 3) {
+      note = 'Kort varighed: centralbanker vil sandsynligvis se igennem stød og afvente 2-3 CPI-prints.';
+    } else if (dur <= 12) {
+      note = 'Vedvarende stød: politisk reaktion bliver mere sandsynlig jo længere lukningen varer.';
+    } else {
+      note = 'Langvarigt stød: strukturel omprisning af energi forventes — vedvarende CB-stramning.';
+    }
+
+    return { regime, cbBias, equities, bonds, risk, riskClass, note };
+  },
+};
+
+/* ══════════════════════════════════════════════════
+   6. CHARTS
+══════════════════════════════════════════════════ */
+Chart.defaults.color       = '#9ca3af';   // --t3 on light bg
+Chart.defaults.borderColor = '#e2e6f2';   // --b1 on light bg
+Chart.defaults.font.family = '-apple-system, Segoe UI, system-ui, sans-serif';
+Chart.defaults.font.size   = 11;
+
+// Plugin: shade the "closure active" period on oil chart
+const closurePlugin = {
+  id: 'closureShade',
+  beforeDraw(chart) {
+    const {ctx, chartArea, scales} = chart;
+    if (!chartArea || !scales.x) return;
+    const dur  = STATE.duration;
+    const x0   = scales.x.getPixelForValue(1);
+    const x1   = scales.x.getPixelForValue(Math.min(dur + 1, N - 1));
+    ctx.save();
+    ctx.fillStyle = 'rgba(199, 138, 10, 0.055)';
+    ctx.fillRect(x0, chartArea.top, x1 - x0, chartArea.bottom - chartArea.top);
+    ctx.restore();
+  },
+};
+
+const CHART_OPTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 220 },
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: { position: 'top', labels: { boxWidth: 8, boxHeight: 8, padding: 12 } },
+    tooltip: {
+      backgroundColor: '#1e2235',
+      borderColor: '#272b42',
+      borderWidth: 1,
+      titleColor: '#e8eaf6',
+      bodyColor: '#9496b0',
+      padding: 10,
+    },
+  },
+  scales: {
+    x: { grid: { color: 'rgba(200,207,226,.5)' }, ticks: { maxRotation: 45, maxTicksLimit: 13 } },
+    y: { grid: { color: 'rgba(200,207,226,.5)' }, beginAtZero: false },
+  },
+};
+
+// chartPlugins: array of Chart.js plugin objects scoped to a single chart instance
+function mkChart(id, datasets, yLabel, chartPlugins=[]) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line',
+    data: { labels: AXIS_LABELS, datasets },
+    plugins: chartPlugins,          // chart-level (not global) plugin registration
+    options: {
+      ...CHART_OPTS,
+      scales: {
+        ...CHART_OPTS.scales,
+        y: { ...CHART_OPTS.scales.y, title: { display: !!yLabel, text: yLabel } },
+      },
+    },
+  });
+}
+
+const Charts = {
+  oil:  null,
+  infl: null,
+  rate: null,
+
+  init() {
+    // Oil chart gets the closurePlugin to shade the active closure period
+    this.oil = mkChart('oilChart', [
+      { label:'Oliepris (USD)', data:[], borderColor:'#d97706', backgroundColor:'rgba(217,119,6,.08)', fill:true, borderWidth:2, pointRadius:0, tension:.3 },
+      { label:'Baseline',       data:[], borderColor:'rgba(156,163,175,.5)', borderDash:[4,3], borderWidth:1.5, pointRadius:0 },
+    ], 'USD / tønde', [closurePlugin]);
+
+    this.infl = mkChart('inflChart', [
+      { label:'ECB (Eurozone)', data:[], borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.06)', fill:true, borderWidth:2, pointRadius:0, tension:.3 },
+      { label:'BoE (UK)',       data:[], borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,.06)', fill:true, borderWidth:2, pointRadius:0, tension:.3 },
+      { label:'Fed (USA)',      data:[], borderColor:'#16a34a', backgroundColor:'rgba(22,163,74,.06)', fill:true, borderWidth:2, pointRadius:0, tension:.3 },
+    ], 'pp afvigelse');
+
+    this.rate = mkChart('rateChart', [
+      { label:'ECB', data:[], borderColor:'#2563eb', borderWidth:2.5, pointRadius:0, tension:0, stepped:'after' },
+      { label:'BoE', data:[], borderColor:'#dc2626', borderWidth:2.5, pointRadius:0, tension:0, stepped:'after' },
+      { label:'Fed', data:[], borderColor:'#16a34a', borderWidth:2.5, pointRadius:0, tension:0, stepped:'after' },
+    ], 'Rente (%)');
+  },
+
+  update(res) {
+    this.oil.data.datasets[0].data = res.oilPrices;
+    this.oil.data.datasets[1].data = MONTHS.map(() => res.baseline);
+    this.oil.update();
+
+    this.infl.data.datasets[0].data = res.euInflDelta;
+    this.infl.data.datasets[1].data = res.ukInflDelta;
+    this.infl.data.datasets[2].data = res.usInflDelta;
+    this.infl.update();
+
+    this.rate.data.datasets[0].data = res.ecbR;
+    this.rate.data.datasets[1].data = res.boeR;
+    this.rate.data.datasets[2].data = res.fedR;
+    this.rate.update();
+  },
+};
+
+/* ══════════════════════════════════════════════════
+   7. RENDERER
+══════════════════════════════════════════════════ */
+const Renderer = {
+  renderMarketStrip() {
+    const container = document.getElementById('msCards');
+    const dot       = document.getElementById('liveDot');
+    const status    = document.getElementById('liveStatus');
+    const timeEl    = document.getElementById('msTime');
+
+    container.innerHTML = MARKET_SYMBOLS.map(s => {
+      const d = STATE.market[s.yf];
+      // Show placeholder card while fetching or if data unavailable
+      if (!d || d.price == null) {
+        return `
+          <div class="ms-card${s.isOil ? ' is-oil' : ''}">
+            <div class="ms-card-info">
+              <div class="ms-card-label">${s.label}</div>
+              <div class="ms-card-price" style="color:var(--t3)">—</div>
+            </div>
+            <div class="ms-card-chg nt">—</div>
+          </div>`;
+      }
+      const chg    = d.price - d.prev;
+      const chgPct = d.prev ? (chg / d.prev) * 100 : 0;
+      const dir    = Math.abs(chgPct) < 0.01 ? 'nt' : chg > 0 ? 'up' : 'dn';
+      const arrow  = dir === 'up' ? '▲' : dir === 'dn' ? '▼' : '—';
+      const price  = s.sub === '%'
+        ? `${d.price.toFixed(s.dec)}%`
+        : s.dec === 0
+          ? d.price.toLocaleString('en-US', {maximumFractionDigits:0})
+          : `$${d.price.toFixed(s.dec)}`;
+      const chgTxt = `${arrow} ${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%`;
+
+      return `
+        <div class="ms-card${s.isOil ? ' is-oil' : ''}">
+          <div class="ms-card-info">
+            <div class="ms-card-label">${s.label}</div>
+            <div class="ms-card-price">${price}</div>
+          </div>
+          <div class="ms-card-chg ${dir}">${chgTxt}</div>
+        </div>`;
+    }).join('');
+
+    // Source indicator: Live (direct) | Proxy | Unavailable
+    const src = STATE.dataSource ?? 'mock';
+    if (src === 'live') {
+      dot.classList.remove('offline');
+      dot.style.background = 'var(--up)';
+      status.textContent = 'Live';
+    } else if (src === 'proxy') {
+      dot.classList.remove('offline');
+      dot.style.background = '#f59e0b';
+      status.textContent = 'Proxy';
+    } else {
+      dot.classList.add('offline');
+      status.textContent = 'Unavailable';
+    }
+
+    const now = new Date();
+    timeEl.textContent = now.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit'});
+
+    // Update live oil display in controls
+    const liveVal = document.getElementById('liveOilVal');
+    liveVal.textContent = STATE.liveOilPrice
+      ? `$${STATE.liveOilPrice.toFixed(2)}`
+      : '—';
+  },
+
+  renderSummaryCards(res) {
+    document.getElementById('sumPeakOil').textContent  = fmtUSD(res.peakOil);
+    document.getElementById('sumOilShock').textContent = `${fmtPct(res.maxShock)} vs. baseline`;
+    document.getElementById('sumPeakInfl').textContent = `${fmtPct(res.peakInflDelta)}`;
+    document.getElementById('sumInflSub').textContent  = `pp-stigning (${res.peakInflCB} hårdest ramt)`;
+
+    const maxChg = Math.max(res.ecbChg, res.boeChg, res.fedChg);
+    const maxCB  = maxChg === res.ecbChg ? 'ECB' : maxChg === res.boeChg ? 'BoE' : 'Fed';
+    document.getElementById('sumRateChg').textContent = fmtBps(maxChg);
+    document.getElementById('sumRateSub').textContent = `${maxCB} peak`;
+
+    document.getElementById('sumNorm').textContent =
+      typeof res.normMonths === 'number' ? `${res.normMonths}` : res.normMonths;
+
+    // Oil chart meta
+    document.getElementById('oilChartMeta').textContent =
+      `Peak $${fmtN(res.peakOil, 0)} · ${fmtPct(res.maxShock)} stød`;
+  },
+
+  renderInterpretation(interp) {
+    const badge = document.getElementById('riskBadge');
+    badge.textContent = interp.risk;
+    badge.className   = `risk-badge ${interp.riskClass}`;
+
+    document.getElementById('intRegime').textContent = interp.regime;
+    document.getElementById('intCB').textContent     = interp.cbBias;
+    document.getElementById('intEq').textContent     = interp.equities;
+    document.getElementById('intBonds').textContent  = interp.bonds;
+    document.getElementById('intNote').textContent   = interp.note;
+  },
+
+  renderCBTable(res, state) {
+    const CBS = [
+      { name:'ECB', cls:'ecb', base:state.ecbRate, chg:res.ecbChg, rates:res.ecbR, firstHike:res.firstHikeECB },
+      { name:'BoE', cls:'boe', base:state.boeRate, chg:res.boeChg, rates:res.boeR, firstHike:res.firstHikeBoE },
+      { name:'Fed', cls:'fed', base:state.fedRate, chg:res.fedChg, rates:res.fedR, firstHike:res.firstHikeFed },
+    ];
+
+    document.getElementById('cbTbody').innerHTML = CBS.map(cb => {
+      const peak      = Math.max(...cb.rates);
+      const pillClass = cb.chg > 0.24 ? 'pill-hike' : cb.chg > 0.01 ? 'pill-hold' : 'pill-none';
+      const pillText  = cb.chg > 0.01 ? `↑ ${fmtBps(cb.chg)}` : '= Hold';
+      const bias      = cb.chg < 0.01 ? 'Kigger igennem'
+                      : cb.chg < 0.5  ? 'Forsigtig stramning'
+                      : cb.chg < 1.0  ? 'Gradvis stramning'
+                      : 'Aggressiv stramning';
+      const hike = cb.firstHike > 0 ? monthLabel(cb.firstHike) : '—';
+
+      return `
+        <tr>
+          <td><div class="cb-name-cell"><span class="cb-dot ${cb.cls}"></span><strong>${cb.name}</strong></div></td>
+          <td>${fmtN(cb.base, 2)}%</td>
+          <td>${fmtN(peak, 2)}%</td>
+          <td><span class="pill ${pillClass}">${pillText}</span></td>
+          <td>${hike}</td>
+          <td style="color:var(--t2)">${bias}</td>
+        </tr>`;
+    }).join('');
+  },
+
+  render() {
+    const state  = {
+      ...STATE,
+      ecbRate:      +document.getElementById('ecbRate').value,
+      ecbInflation: +document.getElementById('ecbInflation').value,
+      boeRate:      +document.getElementById('boeRate').value,
+      boeInflation: +document.getElementById('boeInflation').value,
+      fedRate:      +document.getElementById('fedRate').value,
+      fedInflation: +document.getElementById('fedInflation').value,
+    };
+
+    const res    = Model.run(state);
+    const interp = Interpret.run(res, state);
+
+    this.renderSummaryCards(res);
+    this.renderInterpretation(interp);
+    Charts.update(res);
+    this.renderCBTable(res, state);
+
+    // Stagflation alert
+    document.getElementById('stagAlert').classList.toggle('show', res.stag);
+  },
+};
+
+/* ══════════════════════════════════════════════════
+   8. EVENT HANDLERS
+══════════════════════════════════════════════════ */
+const Events = {
+  init() {
+    // Scenario buttons
+    document.querySelectorAll('.scn-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.scn-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        STATE.scenario = btn.dataset.scn;
+        Renderer.render();
+      });
+    });
+
+    // Mode buttons
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        STATE.mode = btn.dataset.mode;
+        const note = document.getElementById('modeNote');
+        const txt  = MODES[STATE.mode].note;
+        note.textContent = txt;
+        note.classList.toggle('show', !!txt);
+        Renderer.render();
+      });
+    });
+
+    // Duration slider
+    const durSlider = document.getElementById('durSlider');
+    durSlider.addEventListener('input', e => {
+      STATE.duration = +e.target.value;
+      document.getElementById('durVal').textContent = `${STATE.duration} mdr.`;
+      Renderer.render();
+    });
+
+    // Panic slider
+    const panicSlider = document.getElementById('panicSlider');
+    panicSlider.addEventListener('input', e => {
+      STATE.panicPct = +e.target.value;
+      document.getElementById('panicVal').textContent = `+${STATE.panicPct}%`;
+      Renderer.render();
+    });
+
+    // Hawkishness slider
+    const hawkSlider = document.getElementById('hawkSlider');
+    hawkSlider.addEventListener('input', e => {
+      STATE.hawkishness = +e.target.value;
+      const v = STATE.hawkishness;
+      const lbl = v < 20 ? 'Meget dueagtig' : v < 40 ? 'Dueagtig' : v < 60 ? 'Neutral' : v < 80 ? 'Høgeagtig' : 'Meget høgeagtig';
+      document.getElementById('hawkVal').textContent = lbl;
+      Renderer.render();
+    });
+
+    // Live oil toggle
+    document.getElementById('liveOilToggle').addEventListener('change', e => {
+      STATE.useLiveOil = e.target.checked;
+      document.getElementById('manualOilRow').classList.toggle('hidden', STATE.useLiveOil);
+      Renderer.render();
+    });
+
+    // Manual oil input
+    document.getElementById('manualOil').addEventListener('input', e => {
+      STATE.manualOilPrice = +e.target.value || 72;
+      Renderer.render();
+    });
+
+    // CB advanced inputs
+    ['ecbRate','ecbInflation','boeRate','boeInflation','fedRate','fedInflation']
+      .forEach(id => document.getElementById(id).addEventListener('input', () => Renderer.render()));
+
+    // Settings panel toggle
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+      const panel = document.getElementById('settingsPanel');
+      panel.classList.toggle('open');
+      // Pre-fill with stored key
+      if (panel.classList.contains('open')) {
+        const stored = localStorage.getItem('finnhub_key') || '';
+        document.getElementById('finnhubKey').value = stored;
+        document.getElementById('finnhubKey').focus();
+      }
+    });
+
+    // Save API key and refresh
+    document.getElementById('saveKeyBtn').addEventListener('click', () => {
+      const key = document.getElementById('finnhubKey').value.trim();
+      if (key) {
+        localStorage.setItem('finnhub_key', key);
+      } else {
+        localStorage.removeItem('finnhub_key');
+      }
+      document.getElementById('settingsPanel').classList.remove('open');
+      MarketData.refresh().catch(() => {});
+    });
+
+    // Also save on Enter in key field
+    document.getElementById('finnhubKey').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('saveKeyBtn').click();
+    });
+  },
+};
+
+/* ══════════════════════════════════════════════════
+   9. APP INIT
+══════════════════════════════════════════════════ */
+const App = {
+  init() {
+    Charts.init();
+    Events.init();
+
+    // Render the calculator immediately with default inputs (no oil price yet → manual fallback)
+    STATE.market     = { ...MOCK_PRICES };  // all prices null — strip shows dashes
+    STATE.dataSource = 'mock';
+    Renderer.renderMarketStrip();
+    Renderer.render();
+
+    // Kick off live fetch — strip updates as soon as data arrives
+    MarketData.refresh().catch(() => {});
+
+    // Auto-refresh every 60 s (Yahoo Finance delayed ~15 min; proxy similar)
+    setInterval(() => MarketData.refresh().catch(() => {}), 60_000);
+  },
+};
+
+App.init();
+</script>
+</body>
+</html>
